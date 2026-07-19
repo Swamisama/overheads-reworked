@@ -9,6 +9,10 @@ public class PrayerOverheadsPluginTest
 {
 	public static void main(String[] args) throws Exception
 	{
+		// loadBuiltin requires JVM assertions; Bolt launches plain `java -jar`
+		// without -ea, so enable them before any RuneLite class initializes.
+		PrayerOverheadsPluginTest.class.getClassLoader().setDefaultAssertionStatus(true);
+
 		// Bolt launches this jar with launcher-style args (-J-D... JVM passthrough,
 		// --configure) that the client's option parser rejects; drop them.
 		List<String> clientArgs = new ArrayList<>();
