@@ -17,17 +17,21 @@ chat and health bar untouched.
 **Prayer display** — `Tile` (default), `Outline`, `Mini icon`, or `None`, with
 configurable colours for melee / missiles / magic and for the non-protection overheads.
 
-**Redraw** — overhead chat text, health bar, and PK skull, each individually toggleable,
-with a height offset.
+**Redraw** — overhead chat text, health bar, hitsplats, and PK skull, each individually
+toggleable, with a height offset.
 
 ## How it works
 
 `Hooks.RenderableDrawListener` is called for every renderable each frame. Returning
 `false` on an actor's `drawingUI` pass hides its entire 2D block — overhead chat, health
-bar, and the prayer bubble together, since the API exposes no per-element control. An
-`ABOVE_SCENE` overlay then redraws the wanted parts for exactly those actors.
+bar, hitsplats, and the prayer bubble together, since the API exposes no per-element
+control. An `ABOVE_SCENE` overlay then redraws the wanted parts for exactly those actors.
 
 Multiple plugins' draw listeners AND together, so this coexists with core Entity Hider.
+
+The plugin only ever reflects prayers that are *already active and visible* — it never
+indicates which prayer to use. Redrawn hitsplats are approximations, since the client's
+own type-to-sprite mapping is not exposed through the API.
 
 ## Running / developing
 

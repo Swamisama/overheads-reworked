@@ -23,11 +23,6 @@ public class PrayerOverheadsPluginTest
 				clientArgs.add(arg);
 			}
 		}
-		// Dev convenience: when a Jagex Launcher/Bolt session is present, dump it to
-		// credentials.properties so a plain `gradlew run` can log in without a launcher.
-		// No-op when launched without a session. Do not ship this in the hub build.
-		clientArgs.add("--insecure-write-credentials");
-
 		ExternalPluginManager.loadBuiltin(PrayerOverheadsPlugin.class);
 		RuneLite.main(clientArgs.toArray(new String[0]));
 	}

@@ -31,9 +31,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 @PluginDescriptor(
 	name = "Prayer Overheads Reworked",
 	description = "Replace the large overhead protection prayer bubbles with a subtle display",
-	tags = {"prayer", "overhead", "hide", "raid", "declutter"},
-	// Dev only, so cold-boot tests can't miss the plugin; drop for hub submission
-	enabledByDefault = true
+	tags = {"prayer", "overhead", "hide", "raid", "declutter"}
 )
 public class PrayerOverheadsPlugin extends Plugin
 {

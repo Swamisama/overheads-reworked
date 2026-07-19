@@ -47,6 +47,8 @@ class PrayerOverheadsOverlay extends Overlay
 	private static final int HITSPLAT_WIDTH = 21;
 	private static final int HITSPLAT_HEIGHT = 15;
 	private static final int MAX_HITSPLATS = 4;
+	// Vanilla splats sit above the actor's midpoint rather than on it.
+	private static final int HITSPLAT_RAISE = 45;
 
 	private final Client client;
 	private final PrayerOverheadsPlugin plugin;
@@ -157,7 +159,7 @@ class PrayerOverheadsOverlay extends Overlay
 		}
 
 		// Hitsplats sit on the model rather than above it, and stack in a centred row.
-		Point anchor = headPoint(actor, actor.getLogicalHeight() / 2);
+		Point anchor = headPoint(actor, actor.getLogicalHeight() / 2 + HITSPLAT_RAISE);
 		if (anchor == null)
 		{
 			return;
