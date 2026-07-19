@@ -3,17 +3,31 @@
 A RuneLite plugin that gets the large overhead protection-prayer bubbles out of the way —
 in big group content (8-man raids) they can cover the ground tiles you need to see.
 
-Planned modes:
+The plugin suppresses the vanilla 2D overhead block per actor and replaces the prayer
+bubble with something subtle — by default an underfoot tile tint coloured by protection
+style — while redrawing the 2D elements you still want.
 
-- **Bubble:** vanilla / hidden / mini-icon (redrawn smaller by the plugin)
-- **Highlight:** none / outline / underfoot tile / hull tint, colored by protection style
+## Configuration
+
+**Hide vanilla overheads** — independent toggles for your own player, party members,
+other players, and NPCs. `Only while praying` (default on) limits the hiding to actors
+that currently have an overhead icon, so actors that aren't praying keep their vanilla
+chat and health bar untouched.
+
+**Prayer display** — `Tile` (default), `Outline`, `Mini icon`, or `None`, with
+configurable colours for melee / missiles / magic and for the non-protection overheads.
+
+**Redraw** — overhead chat text, health bar, and PK skull, each individually toggleable,
+with a height offset.
 
 ## How it works
 
-The client loads overhead prayer icons from sprite group `HEADICONS_PRAYER` (440).
-`Client.getSpriteOverrides()` intercepts the client's sprite loader by sprite ID, so
-overriding 440 with a transparent sprite removes the bubbles without touching health
-bars, hitsplats, skulls, or overhead chat (unlike Entity Hider's all-or-nothing 2D flags).
+`Hooks.RenderableDrawListener` is called for every renderable each frame. Returning
+`false` on an actor's `drawingUI` pass hides its entire 2D block — overhead chat, health
+bar, and the prayer bubble together, since the API exposes no per-element control. An
+`ABOVE_SCENE` overlay then redraws the wanted parts for exactly those actors.
+
+Multiple plugins' draw listeners AND together, so this coexists with core Entity Hider.
 
 ## Running / developing
 
@@ -24,33 +38,11 @@ bars, hitsplats, skulls, or overhead chat (unlike Entity Hider's all-or-nothing 
 launches the full RuneLite client in developer mode with this plugin loaded.
 Requires JDK 11+.
 
-## Spike protocol (current state)
-
-The plugin currently ships the sprite-override spike. With the plugin enabled,
-config `Overhead bubbles` = `Magenta test`, log in and activate any protection prayer:
-
-1. **Mechanism** — if the bubble renders as a magenta square, the override reaches the
-   overhead icon draw path. If the bubble is unchanged, headicons load outside the
-   overridable path and we fall back to a core-RuneLite contribution.
-2. **Timing** — flip the config to `Vanilla` mid-session. If the bubble reverts
-   immediately (or after switching prayers), overrides apply live; if not, note whether
-   a relog or client restart is needed.
-3. **Granularity** — cycle Protect from Melee/Missiles/Magic. If every prayer shows the
-   same magenta square, the override is group-level (one image for all six icons) —
-   meaning "shrink in place" would lose per-prayer identity, and the mini-icon mode
-   should be: hide vanilla + redraw our own sized/positioned icons in an overlay.
-
 ## Spike results (2026-07-19)
 
-**NEGATIVE.** Sprite override on group 440 has no effect on overhead prayer
-bubbles, including on a cold boot with the override registered before login.
-The headicon draw path does not consult `getSpriteOverrides()` (it presumably
-loads the group through a bulk loader the hook does not wrap). Sprite
-replacement is a dead end for this feature.
-
-**New direction:** `Hooks.registerRenderableDrawListener` — the mechanism the
-core Entity Hider uses. Returning false for an actor's `drawingUI` pass hides
-its whole 2D block (overhead chat, health bar, prayer bubble) per actor, per
-frame. The plugin hides the 2D block for configured actor categories and
-selectively redraws the elements worth keeping (chat text, health bar, skull),
-replacing the prayer bubble with mini-icons / underfoot highlights.
+**Sprite override: NEGATIVE.** Overriding sprite group 440 (`HEADICONS_PRAYER`) via
+`Client.getSpriteOverrides()` has no effect on overhead prayer bubbles, including on a
+cold boot with the override registered before login. The headicon draw path does not
+consult the override map (it presumably loads the group through a bulk loader the hook
+does not wrap). Sprite replacement is a dead end for this feature; the draw-listener
+approach above replaced it.
