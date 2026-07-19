@@ -18,7 +18,9 @@ import net.runelite.client.plugins.PluginDescriptor;
 @PluginDescriptor(
 	name = "Prayer Overheads Reworked",
 	description = "Hide or restyle the large overhead protection prayer bubbles",
-	tags = {"prayer", "overhead", "hide", "raid", "declutter"}
+	tags = {"prayer", "overhead", "hide", "raid", "declutter"},
+	// Dev only, so cold-boot tests can't miss the plugin; drop for hub submission
+	enabledByDefault = true
 )
 public class PrayerOverheadsPlugin extends Plugin
 {
@@ -82,7 +84,7 @@ public class PrayerOverheadsPlugin extends Plugin
 
 	private void setOverride(SpritePixels sprite)
 	{
-		log.debug("Overriding HEADICONS_PRAYER sprite group ({})", SpriteID.HEADICONS_PRAYER);
+		log.info("Overriding HEADICONS_PRAYER sprite group ({})", SpriteID.HEADICONS_PRAYER);
 		client.getSpriteOverrides().put(SpriteID.HEADICONS_PRAYER, sprite);
 		client.getWidgetSpriteCache().reset();
 	}
