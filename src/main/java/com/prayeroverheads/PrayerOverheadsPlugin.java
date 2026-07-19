@@ -1,15 +1,22 @@
 package com.prayeroverheads;
 
 import com.google.inject.Provides;
+import java.util.ArrayList;
+import java.util.List;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.HeadIcon;
+import net.runelite.api.Hitsplat;
 import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Prayer;
 import net.runelite.api.Renderable;
+import net.runelite.api.events.ClientTick;
+import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.client.callback.Hooks;
 import net.runelite.client.config.ConfigManager;
@@ -55,8 +62,16 @@ public class PrayerOverheadsPlugin extends Plugin
 	private boolean hideOthers2D;
 	private boolean hideNpc2D;
 	private boolean onlyWhilePraying;
+	private boolean keepHitsplats;
 
 	private final Hooks.RenderableDrawListener drawListener = this::shouldDraw;
+
+	/**
+	 * Hitsplats applied to actors whose 2D block is hidden, held until the game cycle
+	 * the client would have removed them on. Only a few live at once — they expire
+	 * within a couple of ticks — so a flat list beats a per-actor map here.
+	 */
+	private final List<TrackedHitsplat> trackedHitsplats = new ArrayList<>();
 
 	@Provides
 	PrayerOverheadsConfig provideConfig(ConfigManager configManager)
@@ -77,6 +92,52 @@ public class PrayerOverheadsPlugin extends Plugin
 	{
 		hooks.unregisterRenderableDrawListener(drawListener);
 		overlayManager.remove(overlay);
+		trackedHitsplats.clear();
+	}
+
+	@Subscribe
+	public void onHitsplatApplied(HitsplatApplied event)
+	{
+		// Recorded only for actors already being hidden: if the actor's 2D block is
+		// visible, the client is drawing its hitsplat itself.
+		if (keepHitsplats && shouldHide2D(event.getActor()))
+		{
+			trackedHitsplats.add(new TrackedHitsplat(event.getActor(), event.getHitsplat()));
+		}
+	}
+
+	@Subscribe
+	public void onClientTick(ClientTick event)
+	{
+		int cycle = client.getGameCycle();
+		trackedHitsplats.removeIf(tracked -> cycle >= tracked.hitsplat.getDisappearsOnGameCycle());
+	}
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		// Actor references do not survive a scene reload.
+		if (event.getGameState() != GameState.LOGGED_IN)
+		{
+			trackedHitsplats.clear();
+		}
+	}
+
+	List<TrackedHitsplat> getTrackedHitsplats()
+	{
+		return trackedHitsplats;
+	}
+
+	static class TrackedHitsplat
+	{
+		final Actor actor;
+		final Hitsplat hitsplat;
+
+		TrackedHitsplat(Actor actor, Hitsplat hitsplat)
+		{
+			this.actor = actor;
+			this.hitsplat = hitsplat;
+		}
 	}
 
 	@Subscribe
@@ -95,6 +156,7 @@ public class PrayerOverheadsPlugin extends Plugin
 		hideOthers2D = config.hideOthers2D();
 		hideNpc2D = config.hideNpc2D();
 		onlyWhilePraying = config.onlyWhilePraying();
+		keepHitsplats = config.keepHitsplats();
 	}
 
 	private boolean shouldDraw(Renderable renderable, boolean drawingUI)

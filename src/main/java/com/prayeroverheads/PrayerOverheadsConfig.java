@@ -231,11 +231,23 @@ public interface PrayerOverheadsConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "keepHitsplats",
+		name = "Hitsplats",
+		description = "Redraw hitsplats for actors whose vanilla block is hidden",
+		section = redrawSection,
+		position = 2
+	)
+	default boolean keepHitsplats()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "keepSkull",
 		name = "Skull icon",
 		description = "Redraw the PK skull for players whose vanilla block is hidden",
 		section = redrawSection,
-		position = 2
+		position = 3
 	)
 	default boolean keepSkull()
 	{
@@ -247,7 +259,7 @@ public interface PrayerOverheadsConfig extends Config
 		name = "Height offset",
 		description = "Extra height above the actor for redrawn overhead elements, in world units",
 		section = redrawSection,
-		position = 3
+		position = 4
 	)
 	@Range(min = -100, max = 200)
 	default int heightOffset()

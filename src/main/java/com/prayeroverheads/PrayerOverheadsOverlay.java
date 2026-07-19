@@ -7,10 +7,14 @@ import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Stroke;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.List;
 import javax.inject.Inject;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
 import net.runelite.api.HeadIcon;
+import net.runelite.api.Hitsplat;
+import net.runelite.api.HitsplatID;
 import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
 import net.runelite.api.Perspective;
@@ -34,9 +38,15 @@ class PrayerOverheadsOverlay extends Overlay
 {
 	private static final int HEALTH_BAR_WIDTH = 30;
 	private static final int HEALTH_BAR_HEIGHT = 4;
+	// The vanilla bar sits just above the head rather than at the model's logical top.
+	private static final int HEALTH_BAR_RAISE = 25;
 	private static final Color HEALTH_BAR_LOST = new Color(0x8B, 0x00, 0x00);
 	private static final Color HEALTH_BAR_REMAINING = new Color(0x00, 0xC8, 0x00);
 	private static final Color CHAT_TEXT = new Color(0xFF, 0xFF, 0x00);
+
+	private static final int HITSPLAT_WIDTH = 21;
+	private static final int HITSPLAT_HEIGHT = 15;
+	private static final int MAX_HITSPLATS = 4;
 
 	private final Client client;
 	private final PrayerOverheadsPlugin plugin;
@@ -113,6 +123,125 @@ class PrayerOverheadsOverlay extends Overlay
 		{
 			renderSkull(graphics, (Player) actor, height);
 		}
+
+		if (config.keepHitsplats())
+		{
+			renderHitsplats(graphics, actor);
+		}
+	}
+
+	private void renderHitsplats(Graphics2D graphics, Actor actor)
+	{
+		List<Hitsplat> splats = null;
+		for (PrayerOverheadsPlugin.TrackedHitsplat tracked : plugin.getTrackedHitsplats())
+		{
+			if (tracked.actor != actor)
+			{
+				continue;
+			}
+
+			if (splats == null)
+			{
+				splats = new ArrayList<>(MAX_HITSPLATS);
+			}
+			splats.add(tracked.hitsplat);
+			if (splats.size() == MAX_HITSPLATS)
+			{
+				break;
+			}
+		}
+
+		if (splats == null)
+		{
+			return;
+		}
+
+		// Hitsplats sit on the model rather than above it, and stack in a centred row.
+		Point anchor = headPoint(actor, actor.getLogicalHeight() / 2);
+		if (anchor == null)
+		{
+			return;
+		}
+
+		int totalWidth = splats.size() * HITSPLAT_WIDTH;
+		int x = anchor.getX() - totalWidth / 2;
+		int y = anchor.getY() - HITSPLAT_HEIGHT / 2;
+
+		for (Hitsplat splat : splats)
+		{
+			renderHitsplat(graphics, splat, x, y);
+			x += HITSPLAT_WIDTH;
+		}
+	}
+
+	private void renderHitsplat(Graphics2D graphics, Hitsplat hitsplat, int x, int y)
+	{
+		graphics.setColor(hitsplatColor(hitsplat.getHitsplatType()));
+		graphics.fillOval(x, y, HITSPLAT_WIDTH - 1, HITSPLAT_HEIGHT - 1);
+
+		String amount = Integer.toString(hitsplat.getAmount());
+		int textWidth = graphics.getFontMetrics().stringWidth(amount);
+		int baseline = y + (HITSPLAT_HEIGHT + graphics.getFontMetrics().getAscent()) / 2 - 1;
+
+		textComponent.setText(amount);
+		textComponent.setColor(Color.WHITE);
+		textComponent.setPosition(new java.awt.Point(x + (HITSPLAT_WIDTH - textWidth) / 2, baseline));
+		textComponent.render(graphics);
+	}
+
+	/**
+	 * Approximates the vanilla hitsplat palette. The client keys these off sprite ids
+	 * that the API does not expose, so the mapping is by hitsplat type instead.
+	 */
+	private Color hitsplatColor(int type)
+	{
+		if (type == HitsplatID.BLOCK_ME || type == HitsplatID.BLOCK_OTHER || type == HitsplatID.DISEASE_BLOCKED)
+		{
+			return new Color(0x00, 0x64, 0xC8);
+		}
+		if (type == HitsplatID.POISON)
+		{
+			return new Color(0x00, 0x96, 0x00);
+		}
+		if (type == HitsplatID.VENOM)
+		{
+			return new Color(0x00, 0x50, 0x00);
+		}
+		if (type == HitsplatID.DISEASE)
+		{
+			return new Color(0xC8, 0x96, 0x00);
+		}
+		if (type == HitsplatID.HEAL)
+		{
+			return new Color(0x9B, 0x30, 0xC8);
+		}
+		if (type == HitsplatID.PRAYER_DRAIN || type == HitsplatID.SANITY_DRAIN || type == HitsplatID.SANITY_RESTORE)
+		{
+			return new Color(0x64, 0x64, 0xC8);
+		}
+		if (type == HitsplatID.DAMAGE_ME_CYAN || type == HitsplatID.DAMAGE_OTHER_CYAN
+			|| type == HitsplatID.DAMAGE_MAX_ME_CYAN || type == HitsplatID.CYAN_UP || type == HitsplatID.CYAN_DOWN)
+		{
+			return new Color(0x00, 0xB4, 0xB4);
+		}
+		if (type == HitsplatID.DAMAGE_ME_ORANGE || type == HitsplatID.DAMAGE_OTHER_ORANGE
+			|| type == HitsplatID.DAMAGE_MAX_ME_ORANGE || type == HitsplatID.BURN)
+		{
+			return new Color(0xE0, 0x78, 0x00);
+		}
+		if (type == HitsplatID.DAMAGE_ME_YELLOW || type == HitsplatID.DAMAGE_OTHER_YELLOW
+			|| type == HitsplatID.DAMAGE_MAX_ME_YELLOW)
+		{
+			return new Color(0xC8, 0xC8, 0x00);
+		}
+		if (type == HitsplatID.DAMAGE_ME_WHITE || type == HitsplatID.DAMAGE_OTHER_WHITE
+			|| type == HitsplatID.DAMAGE_MAX_ME_WHITE)
+		{
+			return new Color(0x96, 0x96, 0x96);
+		}
+
+		// Everything else, including the plain and max-hit damage splats.
+		return new Color(0xC8, 0x00, 0x00);
 	}
 
 	private void renderPrayerDisplay(Graphics2D graphics, Actor actor, HeadIcon icon)
@@ -235,7 +364,7 @@ class PrayerOverheadsOverlay extends Overlay
 			return;
 		}
 
-		Point anchor = headPoint(actor, height);
+		Point anchor = headPoint(actor, height + HEALTH_BAR_RAISE);
 		if (anchor == null)
 		{
 			return;
