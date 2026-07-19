@@ -40,4 +40,17 @@ config `Overhead bubbles` = `Magenta test`, log in and activate any protection p
    meaning "shrink in place" would lose per-prayer identity, and the mini-icon mode
    should be: hide vanilla + redraw our own sized/positioned icons in an overlay.
 
-Record results in this README before building the real modes.
+## Spike results (2026-07-19)
+
+**NEGATIVE.** Sprite override on group 440 has no effect on overhead prayer
+bubbles, including on a cold boot with the override registered before login.
+The headicon draw path does not consult `getSpriteOverrides()` (it presumably
+loads the group through a bulk loader the hook does not wrap). Sprite
+replacement is a dead end for this feature.
+
+**New direction:** `Hooks.registerRenderableDrawListener` — the mechanism the
+core Entity Hider uses. Returning false for an actor's `drawingUI` pass hides
+its whole 2D block (overhead chat, health bar, prayer bubble) per actor, per
+frame. The plugin hides the 2D block for configured actor categories and
+selectively redraws the elements worth keeping (chat text, health bar, skull),
+replacing the prayer bubble with mini-icons / underfoot highlights.
