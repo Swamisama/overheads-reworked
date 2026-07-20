@@ -1,5 +1,10 @@
 .gradle
 build
+
+# Internal working notes, not plugin content
+plan.md
+prompt.md
+submission-prompt.md
 .idea/
 .project
 .settings/
