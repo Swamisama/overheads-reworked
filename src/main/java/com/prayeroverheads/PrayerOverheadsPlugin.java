@@ -10,36 +10,43 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.HeadIcon;
 import net.runelite.api.Hitsplat;
-import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Prayer;
 import net.runelite.api.Renderable;
 import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.HitsplatApplied;
-import net.runelite.api.gameval.SpriteID;
-import net.runelite.client.callback.Hooks;
+import net.runelite.client.callback.RenderCallback;
+import net.runelite.client.callback.RenderCallbackManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginManager;
+import net.runelite.client.plugins.entityhider.EntityHiderConfig;
+import net.runelite.client.plugins.entityhider.EntityHiderPlugin;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Prayer Overheads Reworked",
+	name = "Overheads Reworked",
 	description = "Replace the large overhead protection prayer bubbles with a subtle display",
 	tags = {"prayer", "overhead", "hide", "raid", "declutter"}
 )
 public class PrayerOverheadsPlugin extends Plugin
 {
+	/**
+	 * Vanilla stacks at most four splats on an actor at once, in four fixed slots.
+	 */
+	static final int MAX_HITSPLATS = 4;
+
 	@Inject
 	private Client client;
 
 	@Inject
-	private Hooks hooks;
+	private RenderCallbackManager renderCallbackManager;
 
 	@Inject
 	private PartyService partyService;
@@ -53,16 +60,35 @@ public class PrayerOverheadsPlugin extends Plugin
 	@Inject
 	private PrayerOverheadsConfig config;
 
+	@Inject
+	private ConfigManager configManager;
+
+	@Inject
+	private PluginManager pluginManager;
+
+	private EntityHiderConfig entityHiderConfig;
+	private Plugin entityHiderPlugin;
+
 	// The listener runs on the client thread for every renderable of every frame,
 	// so config is read from plain fields rather than through the proxy.
 	private boolean hideSelf2D;
 	private boolean hideParty2D;
 	private boolean hideOthers2D;
-	private boolean hideNpc2D;
 	private boolean onlyWhilePraying;
+	private boolean replaceSmite;
+	private boolean replaceRedemption;
+	private boolean replaceRetribution;
 	private boolean keepHitsplats;
 
-	private final Hooks.RenderableDrawListener drawListener = this::shouldDraw;
+	// RenderCallback has only default methods, so it is not a functional interface.
+	private final RenderCallback renderCallback = new RenderCallback()
+	{
+		@Override
+		public boolean addEntity(Renderable renderable, boolean drawingUI)
+		{
+			return shouldDraw(renderable, drawingUI);
+		}
+	};
 
 	/**
 	 * Hitsplats applied to actors whose 2D block is hidden, held until the game cycle
@@ -81,16 +107,21 @@ public class PrayerOverheadsPlugin extends Plugin
 	protected void startUp()
 	{
 		cacheConfig();
+		entityHiderConfig = configManager.getConfig(EntityHiderConfig.class);
+		findEntityHiderPlugin();
 		overlayManager.add(overlay);
-		hooks.registerRenderableDrawListener(drawListener);
+		renderCallbackManager.register(renderCallback);
 	}
 
 	@Override
 	protected void shutDown()
 	{
-		hooks.unregisterRenderableDrawListener(drawListener);
+		renderCallbackManager.unregister(renderCallback);
 		overlayManager.remove(overlay);
+		overlay.clearCaches();
 		trackedHitsplats.clear();
+		entityHiderPlugin = null;
+		entityHiderConfig = null;
 	}
 
 	@Subscribe
@@ -98,10 +129,46 @@ public class PrayerOverheadsPlugin extends Plugin
 	{
 		// Recorded only for actors already being hidden: if the actor's 2D block is
 		// visible, the client is drawing its hitsplat itself.
-		if (keepHitsplats && shouldHide2D(event.getActor()))
+		if (!keepHitsplats || !shouldHide2D(event.getActor()))
 		{
-			trackedHitsplats.add(new TrackedHitsplat(event.getActor(), event.getHitsplat()));
+			return;
 		}
+
+		int slot = nextHitsplatSlot(event.getActor());
+		if (slot < 0)
+		{
+			// All four vanilla slots are occupied; the client would not draw a fifth either.
+			return;
+		}
+
+		trackedHitsplats.add(new TrackedHitsplat(event.getActor(), event.getHitsplat(), client.getGameCycle(), slot));
+	}
+
+	/**
+	 * The lowest slot this actor is not already using, or -1 if all are taken. Assigning
+	 * the slot once and holding it for the splat's lifetime keeps it in place when an
+	 * earlier splat expires — an index into a per-frame list would shift it mid-flight.
+	 */
+	private int nextHitsplatSlot(Actor actor)
+	{
+		boolean[] taken = new boolean[MAX_HITSPLATS];
+		for (TrackedHitsplat tracked : trackedHitsplats)
+		{
+			if (tracked.actor == actor)
+			{
+				taken[tracked.slot] = true;
+			}
+		}
+
+		for (int slot = 0; slot < MAX_HITSPLATS; slot++)
+		{
+			if (!taken[slot])
+			{
+				return slot;
+			}
+		}
+
+		return -1;
 	}
 
 	@Subscribe
@@ -130,11 +197,16 @@ public class PrayerOverheadsPlugin extends Plugin
 	{
 		final Actor actor;
 		final Hitsplat hitsplat;
+		final int appliedOnGameCycle;
+		/** Fixed for this splat's lifetime; see {@link #nextHitsplatSlot(Actor)}. */
+		final int slot;
 
-		TrackedHitsplat(Actor actor, Hitsplat hitsplat)
+		TrackedHitsplat(Actor actor, Hitsplat hitsplat, int appliedOnGameCycle, int slot)
 		{
 			this.actor = actor;
 			this.hitsplat = hitsplat;
+			this.appliedOnGameCycle = appliedOnGameCycle;
+			this.slot = slot;
 		}
 	}
 
@@ -152,8 +224,10 @@ public class PrayerOverheadsPlugin extends Plugin
 		hideSelf2D = config.hideSelf2D();
 		hideParty2D = config.hideParty2D();
 		hideOthers2D = config.hideOthers2D();
-		hideNpc2D = config.hideNpc2D();
 		onlyWhilePraying = config.onlyWhilePraying();
+		replaceSmite = config.replaceSmite();
+		replaceRedemption = config.replaceRedemption();
+		replaceRetribution = config.replaceRetribution();
 		keepHitsplats = config.keepHitsplats();
 	}
 
@@ -172,26 +246,114 @@ public class PrayerOverheadsPlugin extends Plugin
 	/**
 	 * Whether this actor's vanilla 2D block is suppressed right now. Used both by the
 	 * draw listener and by the overlay, so the two always agree on the same frame.
+	 *
+	 * <p>The plugin is player-only by design: NPCs keep their vanilla 2D block in full.
 	 */
 	boolean shouldHide2D(Actor actor)
 	{
-		if (actor instanceof NPC)
-		{
-			return hideNpc2D && (!onlyWhilePraying || getHeadIcon(actor) != null);
-		}
-
 		if (!(actor instanceof Player))
 		{
 			return false;
 		}
 
 		Player player = (Player) actor;
+		HeadIcon icon = getHeadIcon(player);
+		if (icon != null && !shouldReplace(icon))
+		{
+			// Leave the complete vanilla 2D pass intact for excluded prayers.
+			return false;
+		}
+
 		if (!hideCategory(player))
 		{
 			return false;
 		}
 
-		return !onlyWhilePraying || getHeadIcon(player) != null;
+		return !onlyWhilePraying || icon != null;
+	}
+
+	private boolean shouldReplace(HeadIcon icon)
+	{
+		switch (icon)
+		{
+			case SMITE:
+				return replaceSmite;
+			case REDEMPTION:
+				return replaceRedemption;
+			case RETRIBUTION:
+				return replaceRetribution;
+			default:
+				return true;
+		}
+	}
+
+	/**
+	 * Entity Hider owns visibility. Its render listener suppresses the model/2D
+	 * passes, but overlays run later and cannot observe that combined listener
+	 * result, so mirror its player-category decision before drawing replacements.
+	 */
+	boolean isPlayerHiddenByEntityHider(Player player)
+	{
+		if (entityHiderConfig == null || !isEntityHiderActive() || player.getName() == null)
+		{
+			return false;
+		}
+
+		Player localPlayer = client.getLocalPlayer();
+		if (player == localPlayer)
+		{
+			return entityHiderConfig.hideLocalPlayer() || entityHiderConfig.hideLocalPlayer2D();
+		}
+
+		if (entityHiderConfig.hideAttackers() && player.getInteracting() == localPlayer)
+		{
+			return true;
+		}
+
+		String name = player.getName();
+		if (partyService.isInParty() && partyService.getMemberByDisplayName(name) != null)
+		{
+			return entityHiderConfig.hidePartyMembers();
+		}
+		if (player.isFriend())
+		{
+			return entityHiderConfig.hideFriends();
+		}
+		if (player.isFriendsChatMember())
+		{
+			return entityHiderConfig.hideFriendsChatMembers();
+		}
+		if (player.isClanMember())
+		{
+			return entityHiderConfig.hideClanChatMembers();
+		}
+		if (client.getIgnoreContainer().findByName(name) != null)
+		{
+			return entityHiderConfig.hideIgnores();
+		}
+
+		return entityHiderConfig.hideOthers() || entityHiderConfig.hideOthers2D();
+	}
+
+	private boolean isEntityHiderActive()
+	{
+		if (entityHiderPlugin == null)
+		{
+			findEntityHiderPlugin();
+		}
+		return entityHiderPlugin != null && pluginManager.isPluginActive(entityHiderPlugin);
+	}
+
+	private void findEntityHiderPlugin()
+	{
+		for (Plugin plugin : pluginManager.getPlugins())
+		{
+			if (plugin instanceof EntityHiderPlugin)
+			{
+				entityHiderPlugin = plugin;
+				return;
+			}
+		}
 	}
 
 	private boolean hideCategory(Player player)
@@ -217,46 +379,35 @@ public class PrayerOverheadsPlugin extends Plugin
 	}
 
 	/**
-	 * The overhead icon an actor is currently showing, or null for none.
+	 * The overhead icon a player is currently showing, or null for none.
 	 */
-	HeadIcon getHeadIcon(Actor actor)
+	HeadIcon getHeadIcon(Player player)
 	{
-		if (actor instanceof Player)
+		if (player == client.getLocalPlayer())
 		{
-			Player player = (Player) actor;
-			if (player == client.getLocalPlayer())
+			// The local overhead icon field lags a tick behind the prayer being
+			// activated; the prayer varbits do not.
+			HeadIcon active = activeProtectionPrayer();
+			if (active != null)
 			{
-				// The local overhead icon field lags a tick behind the prayer being
-				// activated; the prayer varbits do not.
-				HeadIcon active = activeProtectionPrayer();
-				if (active != null)
-				{
-					return active;
-				}
+				return active;
 			}
-
-			return player.getOverheadIcon();
 		}
 
-		if (actor instanceof NPC)
-		{
-			return npcHeadIcon((NPC) actor);
-		}
-
-		return null;
+		return player.getOverheadIcon();
 	}
 
 	private HeadIcon activeProtectionPrayer()
 	{
-		if (client.isPrayerActive(Prayer.PROTECT_FROM_MELEE))
+		if (isPrayerActive(Prayer.PROTECT_FROM_MELEE))
 		{
 			return HeadIcon.MELEE;
 		}
-		if (client.isPrayerActive(Prayer.PROTECT_FROM_MISSILES))
+		if (isPrayerActive(Prayer.PROTECT_FROM_MISSILES))
 		{
 			return HeadIcon.RANGED;
 		}
-		if (client.isPrayerActive(Prayer.PROTECT_FROM_MAGIC))
+		if (isPrayerActive(Prayer.PROTECT_FROM_MAGIC))
 		{
 			return HeadIcon.MAGIC;
 		}
@@ -264,33 +415,11 @@ public class PrayerOverheadsPlugin extends Plugin
 	}
 
 	/**
-	 * NPCs carry overheads as parallel (archive, sprite) id arrays with no HeadIcon
-	 * convenience. Frames of the prayer archive map onto HeadIcon in declaration order.
+	 * {@code Client.isPrayerActive} is deprecated; the prayer's own varbit is the
+	 * supported public equivalent.
 	 */
-	private HeadIcon npcHeadIcon(NPC npc)
+	private boolean isPrayerActive(Prayer prayer)
 	{
-		int[] archives = npc.getOverheadArchiveIds();
-		short[] sprites = npc.getOverheadSpriteIds();
-		if (archives == null || sprites == null)
-		{
-			return null;
-		}
-
-		HeadIcon[] icons = HeadIcon.values();
-		for (int i = 0; i < archives.length && i < sprites.length; i++)
-		{
-			if (archives[i] != SpriteID.HEADICONS_PRAYER)
-			{
-				continue;
-			}
-
-			int frame = sprites[i];
-			if (frame >= 0 && frame < icons.length)
-			{
-				return icons[frame];
-			}
-		}
-
-		return null;
+		return client.getVarbitValue(prayer.getVarbit()) == 1;
 	}
 }

@@ -11,19 +11,11 @@ import net.runelite.client.config.Range;
 @ConfigGroup(PrayerOverheadsConfig.GROUP)
 public interface PrayerOverheadsConfig extends Config
 {
-	String GROUP = "prayeroverheads";
-
-	enum PrayerDisplay
-	{
-		NONE,
-		TILE,
-		OUTLINE,
-		MINI_ICON
-	}
+	String GROUP = "overheadsreworked";
 
 	@ConfigSection(
 		name = "Hide vanilla overheads",
-		description = "Which actors lose the vanilla 2D overhead block (prayer bubble, chat, health bar)",
+		description = "Which players lose the vanilla 2D overhead block (prayer bubble, chat, health bar)",
 		position = 0
 	)
 	String hideSection = "hide";
@@ -79,24 +71,12 @@ public interface PrayerOverheadsConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "hideNpc2D",
-		name = "Hide NPC overheads",
-		description = "Hide the vanilla 2D overhead block on NPCs",
-		section = hideSection,
-		position = 3
-	)
-	default boolean hideNpc2D()
-	{
-		return false;
-	}
-
-	@ConfigItem(
 		keyName = "onlyWhilePraying",
 		name = "Only while praying",
-		description = "Only hide an actor's 2D block while it actually has an overhead prayer icon. "
-			+ "Off hides it unconditionally, which is steadier but also affects actors that aren't praying.",
+		description = "Only hide a player's 2D block while they actually have an overhead prayer icon. "
+			+ "Off hides it unconditionally, which is steadier but also affects players who aren't praying.",
 		section = hideSection,
-		position = 4
+		position = 3
 	)
 	default boolean onlyWhilePraying()
 	{
@@ -104,15 +84,88 @@ public interface PrayerOverheadsConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "prayerDisplay",
-		name = "Display",
-		description = "How an active protection prayer is shown instead of the vanilla bubble",
+		keyName = "replaceSmite",
+		name = "Replace Smite",
+		description = "Apply the plugin's replacement display to Smite. Off keeps Smite's vanilla overhead icon.",
+		section = hideSection,
+		position = 4
+	)
+	default boolean replaceSmite()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "replaceRedemption",
+		name = "Replace Redemption",
+		description = "Apply the plugin's replacement display to Redemption. Off keeps Redemption's vanilla overhead icon.",
+		section = hideSection,
+		position = 5
+	)
+	default boolean replaceRedemption()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "replaceRetribution",
+		name = "Replace Retribution",
+		description = "Apply the plugin's replacement display to Retribution. Off keeps Retribution's vanilla overhead icon.",
+		section = hideSection,
+		position = 6
+	)
+	default boolean replaceRetribution()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "showTile",
+		name = "Tile highlight",
+		description = "Tint the tile beneath a player using their active overhead prayer colour",
 		section = displaySection,
 		position = 0
 	)
-	default PrayerDisplay prayerDisplay()
+	default boolean showTile()
 	{
-		return PrayerDisplay.TILE;
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showOutline",
+		name = "Character outline",
+		description = "Outline the player using their active overhead prayer colour; can be combined with the tile",
+		section = displaySection,
+		position = 1
+	)
+	default boolean showOutline()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "showCompactOverhead",
+		name = "Compact overhead",
+		description = "Draw a scaled copy of the original overhead prayer, including its coloured background",
+		section = displaySection,
+		position = 2
+	)
+	default boolean showCompactOverhead()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "highlightOpacity",
+		name = "Highlight opacity",
+		description = "Overall opacity of tile and character highlights, as a percentage of the prayer colour alpha",
+		section = displaySection,
+		position = 3
+	)
+	@Range(min = 0, max = 100)
+	default int highlightOpacity()
+	{
+		return 100;
 	}
 
 	@Alpha
@@ -121,7 +174,7 @@ public interface PrayerOverheadsConfig extends Config
 		name = "Protect from Melee",
 		description = "Colour used for Protect from Melee (and Deflect Melee)",
 		section = displaySection,
-		position = 1
+		position = 4
 	)
 	default Color meleeColor()
 	{
@@ -134,7 +187,7 @@ public interface PrayerOverheadsConfig extends Config
 		name = "Protect from Missiles",
 		description = "Colour used for Protect from Missiles (and Deflect Ranged)",
 		section = displaySection,
-		position = 2
+		position = 5
 	)
 	default Color rangedColor()
 	{
@@ -147,7 +200,7 @@ public interface PrayerOverheadsConfig extends Config
 		name = "Protect from Magic",
 		description = "Colour used for Protect from Magic (and Deflect Magic)",
 		section = displaySection,
-		position = 3
+		position = 6
 	)
 	default Color magicColor()
 	{
@@ -160,7 +213,7 @@ public interface PrayerOverheadsConfig extends Config
 		name = "Other overheads",
 		description = "Colour used for non-protection overheads (Retribution, Smite, Redemption, combo icons)",
 		section = displaySection,
-		position = 4
+		position = 7
 	)
 	default Color otherColor()
 	{
@@ -172,7 +225,7 @@ public interface PrayerOverheadsConfig extends Config
 		name = "Tile border width",
 		description = "Outline width of the underfoot tile, in pixels. 0 draws fill only.",
 		section = displaySection,
-		position = 5
+		position = 8
 	)
 	@Range(max = 8)
 	default int tileBorderWidth()
@@ -185,7 +238,7 @@ public interface PrayerOverheadsConfig extends Config
 		name = "Outline width",
 		description = "Model outline width, in pixels (Outline display only)",
 		section = displaySection,
-		position = 6
+		position = 9
 	)
 	@Range(min = 1, max = 8)
 	default int outlineWidth()
@@ -195,10 +248,10 @@ public interface PrayerOverheadsConfig extends Config
 
 	@ConfigItem(
 		keyName = "iconScale",
-		name = "Mini icon size",
-		description = "Size of the redrawn prayer icon, as a percentage of the prayer book sprite (Mini icon display only)",
+		name = "Compact overhead size",
+		description = "Size of the compact original overhead, as a percentage of its normal size",
 		section = displaySection,
-		position = 7
+		position = 10
 	)
 	@Range(min = 25, max = 150)
 	default int iconScale()
@@ -209,7 +262,7 @@ public interface PrayerOverheadsConfig extends Config
 	@ConfigItem(
 		keyName = "keepChatText",
 		name = "Overhead chat",
-		description = "Redraw overhead chat text for actors whose vanilla block is hidden",
+		description = "Redraw overhead chat text for players whose vanilla block is hidden",
 		section = redrawSection,
 		position = 0
 	)
@@ -221,7 +274,7 @@ public interface PrayerOverheadsConfig extends Config
 	@ConfigItem(
 		keyName = "keepHealthBar",
 		name = "Health bar",
-		description = "Redraw the health bar for actors whose vanilla block is hidden",
+		description = "Redraw the health bar for players whose vanilla block is hidden",
 		section = redrawSection,
 		position = 1
 	)
@@ -233,7 +286,7 @@ public interface PrayerOverheadsConfig extends Config
 	@ConfigItem(
 		keyName = "keepHitsplats",
 		name = "Hitsplats",
-		description = "Redraw hitsplats for actors whose vanilla block is hidden",
+		description = "Redraw hitsplats for players whose vanilla block is hidden",
 		section = redrawSection,
 		position = 2
 	)
@@ -257,7 +310,7 @@ public interface PrayerOverheadsConfig extends Config
 	@ConfigItem(
 		keyName = "heightOffset",
 		name = "Height offset",
-		description = "Extra height above the actor for redrawn overhead elements, in world units",
+		description = "Extra height above the player for redrawn overhead elements, in world units",
 		section = redrawSection,
 		position = 4
 	)
