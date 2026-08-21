@@ -1,6 +1,5 @@
 package com.prayeroverheads;
 
-import java.awt.BasicStroke;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
@@ -8,9 +7,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.Polygon;
 import java.awt.RenderingHints;
-import java.awt.Stroke;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,23 +18,20 @@ import net.runelite.api.Client;
 import net.runelite.api.HeadIcon;
 import net.runelite.api.Hitsplat;
 import net.runelite.api.HitsplatID;
-import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.TextComponent;
-import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 
 /**
- * Redraws, for every player whose vanilla 2D block the draw listener suppressed, the
- * prayer display plus whichever 2D elements the user chose to keep. NPCs are never
- * touched — the plugin is player-only by design.
+ * Redraws the wanted 2D elements for every player whose vanilla block the draw
+ * listener suppressed. Scene-level prayer replacements live in a separate overlay
+ * so this UI can render after the scene and actor overhead passes.
  */
 class PrayerOverheadsOverlay extends Overlay
 {
@@ -70,29 +64,21 @@ class PrayerOverheadsOverlay extends Overlay
 	private final PrayerOverheadsPlugin plugin;
 	private final PrayerOverheadsConfig config;
 	private final SpriteManager spriteManager;
-	private final ModelOutlineRenderer outlineRenderer;
 
 	private final TextComponent textComponent = new TextComponent();
 	private final Map<Integer, HitsplatDefinition> hitsplatDefinitions = new HashMap<>();
 	private final Map<Long, BufferedImage> compactOverheads = new HashMap<>();
 
-	// Render-path scratch state: the inputs repeat every frame, so the derived
-	// AWT objects are memoised rather than reallocated per player per frame.
-	private final Map<Long, Color> highlightColors = new HashMap<>();
-	private Stroke tileBorderStroke;
-	private int tileBorderStrokeWidth = -1;
-
 	@Inject
 	PrayerOverheadsOverlay(Client client, PrayerOverheadsPlugin plugin, PrayerOverheadsConfig config,
-		SpriteManager spriteManager, ModelOutlineRenderer outlineRenderer)
+		SpriteManager spriteManager)
 	{
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
 		this.spriteManager = spriteManager;
-		this.outlineRenderer = outlineRenderer;
 
-		setLayer(OverlayLayer.ABOVE_SCENE);
+		setLayer(OverlayLayer.UNDER_WIDGETS);
 		setPosition(OverlayPosition.DYNAMIC);
 		setPriority(PRIORITY_LOW);
 	}
@@ -124,11 +110,6 @@ class PrayerOverheadsOverlay extends Overlay
 	private void renderPlayer(Graphics2D graphics, Player player, List<ChatEntry> chatEntries)
 	{
 		HeadIcon icon = plugin.getHeadIcon(player);
-		if (icon != null)
-		{
-			renderPrayerDisplay(graphics, player, icon);
-		}
-
 		if (config.keepChatText())
 		{
 			collectChatEntry(graphics, player, chatEntries);
@@ -171,7 +152,7 @@ class PrayerOverheadsOverlay extends Overlay
 
 			if (anchor == null)
 			{
-				anchor = headPoint(player, player.getLogicalHeight() / 2 + HITSPLAT_RAISE);
+				anchor = headPoint(graphics, player, player.getLogicalHeight() / 2 + HITSPLAT_RAISE);
 				if (anchor == null)
 				{
 					return;
@@ -193,9 +174,6 @@ class PrayerOverheadsOverlay extends Overlay
 	{
 		hitsplatDefinitions.clear();
 		compactOverheads.clear();
-		highlightColors.clear();
-		tileBorderStroke = null;
-		tileBorderStrokeWidth = -1;
 	}
 
 	private void renderHitsplat(Graphics2D graphics, PrayerOverheadsPlugin.TrackedHitsplat tracked, int centerX, int centerY)
@@ -388,68 +366,6 @@ class PrayerOverheadsOverlay extends Overlay
 		return HITSPLAT_DAMAGE;
 	}
 
-	private void renderPrayerDisplay(Graphics2D graphics, Player player, HeadIcon icon)
-	{
-		Color color = highlightColor(colorFor(icon), config.highlightOpacity());
-		if (config.showTile())
-		{
-			renderTile(graphics, player, color);
-		}
-		if (config.showOutline())
-		{
-			outlineRenderer.drawOutline(player, config.outlineWidth(), color, 0);
-		}
-	}
-
-	/**
-	 * Memoised {@link #withHighlightOpacity}: only a handful of (prayer colour, opacity)
-	 * pairs occur, but the uncached call allocates once per drawn player per frame.
-	 */
-	private Color highlightColor(Color color, int opacityPercent)
-	{
-		long key = ((long) color.getRGB() << 32) | (opacityPercent & 0xFFFFFFFFL);
-		return highlightColors.computeIfAbsent(key, k -> withHighlightOpacity(color, opacityPercent));
-	}
-
-	private void renderTile(Graphics2D graphics, Player player, Color color)
-	{
-		LocalPoint location = player.getLocalLocation();
-		if (location == null)
-		{
-			return;
-		}
-
-		// Players are always one tile.
-		Polygon poly = Perspective.getCanvasTilePoly(client, location);
-		if (poly == null)
-		{
-			return;
-		}
-
-		graphics.setColor(color);
-		graphics.fill(poly);
-
-		int borderWidth = config.tileBorderWidth();
-		if (borderWidth > 0)
-		{
-			Stroke original = graphics.getStroke();
-			graphics.setColor(color);
-			graphics.setStroke(tileBorderStroke(borderWidth));
-			graphics.draw(poly);
-			graphics.setStroke(original);
-		}
-	}
-
-	private Stroke tileBorderStroke(int width)
-	{
-		if (tileBorderStroke == null || tileBorderStrokeWidth != width)
-		{
-			tileBorderStroke = new BasicStroke(width);
-			tileBorderStrokeWidth = width;
-		}
-		return tileBorderStroke;
-	}
-
 	private void renderCompactOverhead(Graphics2D graphics, Player player, HeadIcon icon, int stackedHeight)
 	{
 		int scale = config.iconScale();
@@ -474,7 +390,7 @@ class PrayerOverheadsOverlay extends Overlay
 			compactOverheads.put(cacheKey, sprite);
 		}
 
-		Point anchor = headPoint(player, player.getLogicalHeight() + config.heightOffset()
+		Point anchor = headPoint(graphics, player, player.getLogicalHeight() + config.heightOffset()
 			+ HEALTH_BAR_RAISE + stackedHeight + sprite.getHeight());
 		if (anchor == null)
 		{
@@ -482,12 +398,6 @@ class PrayerOverheadsOverlay extends Overlay
 		}
 
 		graphics.drawImage(sprite, anchor.getX() - sprite.getWidth() / 2, anchor.getY(), null);
-	}
-
-	static Color withHighlightOpacity(Color color, int opacityPercent)
-	{
-		int alpha = color.getAlpha() * opacityPercent / 100;
-		return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
 	}
 
 	private void collectChatEntry(Graphics2D graphics, Player player, List<ChatEntry> entries)
@@ -506,7 +416,7 @@ class PrayerOverheadsOverlay extends Overlay
 			return;
 		}
 
-		Point anchor = headPoint(player, player.getLogicalHeight() + config.heightOffset());
+		Point anchor = headPoint(graphics, player, player.getLogicalHeight() + config.heightOffset());
 		if (anchor == null)
 		{
 			return;
@@ -569,7 +479,8 @@ class PrayerOverheadsOverlay extends Overlay
 			return 0;
 		}
 
-		Point anchor = headPoint(player, player.getLogicalHeight() + config.heightOffset() + HEALTH_BAR_RAISE);
+		Point anchor = headPoint(graphics, player,
+			player.getLogicalHeight() + config.heightOffset() + HEALTH_BAR_RAISE);
 		if (anchor == null)
 		{
 			return 0;
@@ -611,7 +522,7 @@ class PrayerOverheadsOverlay extends Overlay
 			return 0;
 		}
 
-		Point anchor = headPoint(player, player.getLogicalHeight() + config.heightOffset()
+		Point anchor = headPoint(graphics, player, player.getLogicalHeight() + config.heightOffset()
 			+ HEALTH_BAR_RAISE + stackedHeight + sprite.getHeight());
 		if (anchor == null)
 		{
@@ -640,33 +551,11 @@ class PrayerOverheadsOverlay extends Overlay
 		}
 	}
 
-	private Point headPoint(Player player, int zOffset)
+	static Point headPoint(Graphics2D graphics, Player player, int zOffset)
 	{
-		LocalPoint location = player.getLocalLocation();
-		if (location == null)
-		{
-			return null;
-		}
-
-		return Perspective.localToCanvas(client, location, client.getTopLevelWorldView().getPlane(), zOffset);
-	}
-
-	private Color colorFor(HeadIcon icon)
-	{
-		switch (icon)
-		{
-			case MELEE:
-			case DEFLECT_MELEE:
-				return config.meleeColor();
-			case RANGED:
-			case DEFLECT_RANGE:
-				return config.rangedColor();
-			case MAGIC:
-			case DEFLECT_MAGE:
-				return config.magicColor();
-			default:
-				return config.otherColor();
-		}
+		// Actor projection accounts for the player's world view, footprint tile
+		// height, and animation height offset. A raw tile projection does not.
+		return player.getCanvasTextLocation(graphics, "", zOffset);
 	}
 
 }

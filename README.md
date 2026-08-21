@@ -32,11 +32,12 @@ A `RenderCallback` registered with `RenderCallbackManager` is consulted for ever
 renderable each frame. Returning `false` from `addEntity` on a player's `drawingUI` pass
 hides that player's entire 2D block — overhead chat, health bar, hitsplats, and the
 prayer bubble together, since the API exposes no per-element control. An `ABOVE_SCENE`
-overlay then redraws the wanted parts for exactly those players. Non-player renderables
-are passed through untouched before any prayer state is even read.
+overlay draws the tile and model-outline replacements, while an `UNDER_WIDGETS` overlay
+redraws the wanted 2D UI after the scene and actor overhead passes. Non-player
+renderables are passed through untouched before any prayer state is even read.
 
 Multiple plugins' render callbacks AND together, so this coexists with core Entity Hider.
-The replacement overlay also mirrors Entity Hider's **player** categories: if Entity Hider
+The replacement overlays also mirror Entity Hider's **player** categories: if Entity Hider
 hides a player's model or 2D elements, this plugin draws no tile, outline, icon, or other
 replacement element for that player. It mirrors those player categories only — Entity
 Hider's NPC handling is irrelevant here, because this plugin never touches NPCs.

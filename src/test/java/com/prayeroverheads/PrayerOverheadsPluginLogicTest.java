@@ -61,6 +61,9 @@ public class PrayerOverheadsPluginLogicTest
 	private PrayerOverheadsOverlay overlay;
 
 	@Mock
+	private PrayerOverheadsSceneOverlay sceneOverlay;
+
+	@Mock
 	private ConfigManager configManager;
 
 	@Mock
@@ -426,8 +429,12 @@ public class PrayerOverheadsPluginLogicTest
 
 		assertTrue(plugin.getTrackedHitsplats().isEmpty());
 		org.mockito.Mockito.verify(renderCallbackManager).unregister(any());
+		org.mockito.Mockito.verify(overlayManager).add(sceneOverlay);
+		org.mockito.Mockito.verify(overlayManager).add(overlay);
 		org.mockito.Mockito.verify(overlayManager).remove(overlay);
+		org.mockito.Mockito.verify(overlayManager).remove(sceneOverlay);
 		org.mockito.Mockito.verify(overlay).clearCaches();
+		org.mockito.Mockito.verify(sceneOverlay).clearCaches();
 		// Entity Hider state is dropped too, so a restart re-resolves it.
 		assertFalse(plugin.isPlayerHiddenByEntityHider(target));
 	}

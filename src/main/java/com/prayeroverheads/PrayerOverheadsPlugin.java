@@ -58,6 +58,9 @@ public class PrayerOverheadsPlugin extends Plugin
 	private PrayerOverheadsOverlay overlay;
 
 	@Inject
+	private PrayerOverheadsSceneOverlay sceneOverlay;
+
+	@Inject
 	private PrayerOverheadsConfig config;
 
 	@Inject
@@ -109,6 +112,7 @@ public class PrayerOverheadsPlugin extends Plugin
 		cacheConfig();
 		entityHiderConfig = configManager.getConfig(EntityHiderConfig.class);
 		findEntityHiderPlugin();
+		overlayManager.add(sceneOverlay);
 		overlayManager.add(overlay);
 		renderCallbackManager.register(renderCallback);
 	}
@@ -118,7 +122,9 @@ public class PrayerOverheadsPlugin extends Plugin
 	{
 		renderCallbackManager.unregister(renderCallback);
 		overlayManager.remove(overlay);
+		overlayManager.remove(sceneOverlay);
 		overlay.clearCaches();
+		sceneOverlay.clearCaches();
 		trackedHitsplats.clear();
 		entityHiderPlugin = null;
 		entityHiderConfig = null;
