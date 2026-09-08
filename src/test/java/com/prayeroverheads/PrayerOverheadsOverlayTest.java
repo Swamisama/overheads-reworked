@@ -27,8 +27,8 @@ public class PrayerOverheadsOverlayTest
 	public void displayDefaultsAreComposableAndOpacityPreservesRgb()
 	{
 		PrayerOverheadsConfig config = new PrayerOverheadsConfig() { };
-		assertTrue(config.showTile());
-		assertFalse(config.showOutline());
+		assertFalse(config.showTile());
+		assertTrue(config.showOutline());
 		assertFalse(config.showCompactOverhead());
 
 		Color source = new Color(10, 20, 30, 200);

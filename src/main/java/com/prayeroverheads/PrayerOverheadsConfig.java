@@ -128,7 +128,7 @@ public interface PrayerOverheadsConfig extends Config
 	)
 	default boolean showTile()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(
@@ -140,7 +140,7 @@ public interface PrayerOverheadsConfig extends Config
 	)
 	default boolean showOutline()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(
@@ -165,7 +165,7 @@ public interface PrayerOverheadsConfig extends Config
 	@Range(min = 0, max = 100)
 	default int highlightOpacity()
 	{
-		return 100;
+		return 60;
 	}
 
 	@Alpha
@@ -178,7 +178,7 @@ public interface PrayerOverheadsConfig extends Config
 	)
 	default Color meleeColor()
 	{
-		return new Color(0xE6, 0x3E, 0x31, 0x3C);
+		return new Color(0xFF, 0x13, 0x00, 0xFF);
 	}
 
 	@Alpha
@@ -191,7 +191,7 @@ public interface PrayerOverheadsConfig extends Config
 	)
 	default Color rangedColor()
 	{
-		return new Color(0x52, 0xC4, 0x1A, 0x3C);
+		return new Color(0x57, 0xFF, 0x00, 0xFF);
 	}
 
 	@Alpha
@@ -204,7 +204,7 @@ public interface PrayerOverheadsConfig extends Config
 	)
 	default Color magicColor()
 	{
-		return new Color(0x2F, 0x81, 0xF7, 0x3C);
+		return new Color(0x00, 0xAD, 0xFF, 0xFF);
 	}
 
 	@Alpha
@@ -217,7 +217,7 @@ public interface PrayerOverheadsConfig extends Config
 	)
 	default Color otherColor()
 	{
-		return new Color(0xE8, 0xD4, 0x4D, 0x3C);
+		return new Color(0xFF, 0xDD, 0x00, 0xFF);
 	}
 
 	@ConfigItem(
@@ -230,7 +230,7 @@ public interface PrayerOverheadsConfig extends Config
 	@Range(max = 8)
 	default int tileBorderWidth()
 	{
-		return 2;
+		return 4;
 	}
 
 	@ConfigItem(
@@ -243,7 +243,7 @@ public interface PrayerOverheadsConfig extends Config
 	@Range(min = 1, max = 8)
 	default int outlineWidth()
 	{
-		return 3;
+		return 5;
 	}
 
 	@ConfigItem(
@@ -256,7 +256,7 @@ public interface PrayerOverheadsConfig extends Config
 	@Range(min = 0, max = 4)
 	default int outlineFeather()
 	{
-		return 0;
+		return 4;
 	}
 
 	@ConfigItem(
@@ -269,7 +269,7 @@ public interface PrayerOverheadsConfig extends Config
 	@Range(min = 25, max = 150)
 	default int iconScale()
 	{
-		return 60;
+		return 75;
 	}
 
 	@ConfigItem(
@@ -330,6 +330,6 @@ public interface PrayerOverheadsConfig extends Config
 	@Range(min = -100, max = 200)
 	default int heightOffset()
 	{
-		return 0;
+		return 5;
 	}
 }
