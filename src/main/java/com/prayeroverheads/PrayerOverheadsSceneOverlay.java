@@ -91,7 +91,7 @@ class PrayerOverheadsSceneOverlay extends Overlay
 		}
 		if (config.showOutline())
 		{
-			outlineRenderer.drawOutline(player, config.outlineWidth(), color, 0);
+			outlineRenderer.drawOutline(player, config.outlineWidth(), color, config.outlineFeather());
 		}
 	}
 

@@ -11,7 +11,6 @@ import net.runelite.api.GameState;
 import net.runelite.api.HeadIcon;
 import net.runelite.api.Hitsplat;
 import net.runelite.api.Player;
-import net.runelite.api.Prayer;
 import net.runelite.api.Renderable;
 import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.GameStateChanged;
@@ -386,46 +385,13 @@ public class PrayerOverheadsPlugin extends Plugin
 
 	/**
 	 * The overhead icon a player is currently showing, or null for none.
+	 *
+	 * <p>Deliberately the same for the local player as for everyone else: using the
+	 * prayer varbits instead would light this up a tick before {@link Player#getOverheadIcon()}
+	 * actually changes, i.e. before the protection is mechanically active.
 	 */
 	HeadIcon getHeadIcon(Player player)
 	{
-		if (player == client.getLocalPlayer())
-		{
-			// The local overhead icon field lags a tick behind the prayer being
-			// activated; the prayer varbits do not.
-			HeadIcon active = activeProtectionPrayer();
-			if (active != null)
-			{
-				return active;
-			}
-		}
-
 		return player.getOverheadIcon();
-	}
-
-	private HeadIcon activeProtectionPrayer()
-	{
-		if (isPrayerActive(Prayer.PROTECT_FROM_MELEE))
-		{
-			return HeadIcon.MELEE;
-		}
-		if (isPrayerActive(Prayer.PROTECT_FROM_MISSILES))
-		{
-			return HeadIcon.RANGED;
-		}
-		if (isPrayerActive(Prayer.PROTECT_FROM_MAGIC))
-		{
-			return HeadIcon.MAGIC;
-		}
-		return null;
-	}
-
-	/**
-	 * {@code Client.isPrayerActive} is deprecated; the prayer's own varbit is the
-	 * supported public equivalent.
-	 */
-	private boolean isPrayerActive(Prayer prayer)
-	{
-		return client.getVarbitValue(prayer.getVarbit()) == 1;
 	}
 }

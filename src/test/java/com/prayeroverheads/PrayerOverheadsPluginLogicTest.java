@@ -96,9 +96,10 @@ public class PrayerOverheadsPluginLogicTest
 	public void hidesEachPlayerCategoryOnlyWhenItsToggleIsOn()
 	{
 		Player other = player("Other", HeadIcon.MELEE);
+		when(localPlayer.getOverheadIcon()).thenReturn(HeadIcon.MELEE);
 		startUp();
 
-		assertTrue("local player", plugin.shouldHide2D(praying(localPlayer)));
+		assertTrue("local player", plugin.shouldHide2D(localPlayer));
 		assertTrue("other player", plugin.shouldHide2D(other));
 
 		config.hideSelf2D = false;
@@ -476,17 +477,6 @@ public class PrayerOverheadsPluginLogicTest
 		lenient().when(player.getName()).thenReturn(name);
 		lenient().when(player.getOverheadIcon()).thenReturn(icon);
 		return player;
-	}
-
-	/**
-	 * The local player's icon comes from the prayer varbits rather than the lagging
-	 * overhead field, so praying has to be expressed that way.
-	 */
-	private Player praying(Player local)
-	{
-		when(client.getVarbitValue(net.runelite.api.Prayer.PROTECT_FROM_MELEE.getVarbit()))
-			.thenReturn(1);
-		return local;
 	}
 
 	private void applyHitsplat(Actor actor, int amount, int disappearsOnGameCycle)

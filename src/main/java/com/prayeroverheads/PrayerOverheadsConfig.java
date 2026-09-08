@@ -247,11 +247,24 @@ public interface PrayerOverheadsConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "outlineFeather",
+		name = "Outline feather",
+		description = "Softens the outline's edge with a fade, in pixels (Outline display only). 0 is a hard edge.",
+		section = displaySection,
+		position = 10
+	)
+	@Range(min = 0, max = 4)
+	default int outlineFeather()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "iconScale",
 		name = "Compact overhead size",
 		description = "Size of the compact original overhead, as a percentage of its normal size",
 		section = displaySection,
-		position = 10
+		position = 11
 	)
 	@Range(min = 25, max = 150)
 	default int iconScale()
